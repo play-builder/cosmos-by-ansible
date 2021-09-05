@@ -1,0 +1,4 @@
+ansible>=8.0.0
+ansible-lint>=6.0.0
+jmespath>=1.0.0
+cryptography>=40.0.0
