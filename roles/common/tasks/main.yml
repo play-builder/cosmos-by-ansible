@@ -1,0 +1,107 @@
+---
+- name: Set hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+- name: Set timezone
+  timezone:
+    name: "{{ timezone | default('UTC') }}"
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+- name: Upgrade all packages
+  apt:
+    upgrade: dist
+    autoremove: yes
+  register: apt_upgrade
+  retries: 3
+  delay: 10
+  until: apt_upgrade is succeeded
+- name: Install essential packages
+  apt:
+    name:
+      - curl
+      - tar
+      - wget
+      - clang
+      - pkg-config
+      - libssl-dev
+      - jq
+      - build-essential
+      - bsdmainutils
+      - git
+      - make
+      - ncdu
+      - gcc
+      - chrony
+      - liblz4-tool
+      - unzip
+      - htop
+      - iotop
+      - net-tools
+      - tmux
+      - vim
+      - expect
+      - ufw
+      - fail2ban
+      - logrotate
+      - python3-pip
+      - acl
+    state: present
+- name: Ensure chrony is running
+  service:
+    name: chrony
+    state: started
+    enabled: yes
+- name: Configure sysctl for better performance
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_set: yes
+    state: present
+    reload: yes
+  loop:
+    - { name: 'net.core.somaxconn', value: '65535' }
+    - { name: 'net.core.netdev_max_backlog', value: '65535' }
+    - { name: 'net.ipv4.tcp_max_syn_backlog', value: '65535' }
+    - { name: 'net.ipv4.tcp_tw_reuse', value: '1' }
+    - { name: 'net.ipv4.ip_local_port_range', value: '1024 65535' }
+    - { name: 'fs.file-max', value: '2097152' }
+    - { name: 'vm.swappiness', value: '10' }
+- name: Configure system limits
+  pam_limits:
+    domain: '*'
+    limit_type: "{{ item.limit_type }}"
+    limit_item: "{{ item.limit_item }}"
+    value: "{{ item.value }}"
+  loop:
+    - { limit_type: 'soft', limit_item: 'nofile', value: '65535' }
+    - { limit_type: 'hard', limit_item: 'nofile', value: '65535' }
+    - { limit_type: 'soft', limit_item: 'nproc', value: '65535' }
+    - { limit_type: 'hard', limit_item: 'nproc', value: '65535' }
+- name: Create backup directory
+  file:
+    path: "{{ backup_dir }}"
+    state: directory
+    mode: '0700'
+  when: backup_enabled | default(true)
+- name: Configure logrotate for syslog
+  copy:
+    dest: /etc/logrotate.d/cosmos-node
+    content: |
+      /var/log/cosmos/*.log {
+          daily
+          missingok
+          rotate 7
+          compress
+          delaycompress
+          notifempty
+          create 0644 root root
+          sharedscripts
+      }
+    mode: '0644'
+- name: Create cosmos log directory
+  file:
+    path: /var/log/cosmos
+    state: directory
+    mode: '0755'
