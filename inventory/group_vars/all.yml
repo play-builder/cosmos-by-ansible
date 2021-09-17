@@ -1,0 +1,62 @@
+---
+timezone: "UTC"
+locale: "en_US.UTF-8"
+go_version: "1.22.3"
+go_arch: "linux-amd64"
+cosmovisor_version: "v1.5.0"
+node_user: root
+node_group: root
+base_dir: "/root"
+go_path: "{{ base_dir }}/go"
+go_bin: "{{ go_path }}/bin"
+p2p_port: 26656
+rpc_port: 26657
+api_port: 1317
+grpc_port: 9090
+grpc_web_port: 9091
+prometheus_port: 26660
+node_exporter_port: 9100
+cosmos_exporter_port: 9300
+ufw_enabled: true
+ufw_default_policy: deny
+ufw_allowed_ports:
+  - { port: 22, proto: tcp, comment: "SSH" }
+  - { port: "{{ p2p_port }}", proto: tcp, comment: "Cosmos P2P" }
+  - { port: "{{ node_exporter_port }}", proto: tcp, comment: "Node Exporter" }
+  - {
+      port: "{{ cosmos_exporter_port }}",
+      proto: tcp,
+      comment: "Cosmos Exporter",
+    }
+  - {
+      port: "{{ prometheus_port }}",
+      proto: tcp,
+      comment: "Tendermint Prometheus",
+    }
+pruning: "custom"
+pruning_keep_recent: "100"
+pruning_keep_every: "0"
+pruning_interval: "10"
+state_sync_enabled: false
+minimum_gas_prices: "0.001utoken"
+cosmovisor_allow_download_binaries: "false"
+cosmovisor_restart_after_upgrade: "true"
+cosmovisor_log_buffer_size: "512"
+cosmovisor_unsafe_skip_backup: "true"
+validator_website: "https://www.playdevops.click"
+validator_identity: "3115DDA1633A6964"
+validator_details: "Discover Projects Of Tomorrow"
+validator_security_contact: "contact@playdevops.click"
+commission_rate: "0.05"
+commission_max_rate: "0.20"
+commission_max_change_rate: "0.01"
+auto_delegation_enabled: false
+auto_delegation_interval: 3600
+auto_delegation_keep_amount: 30000
+slack_webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+slack_channel: "
+backup_enabled: true
+backup_dir: "/root/backups"
+backup_keys:
+  - "priv_validator_key.json"
+  - "node_key.json"
