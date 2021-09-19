@@ -1,0 +1,72 @@
+---
+- name: Install UFW
+  apt:
+    name: ufw
+    state: present
+- name: Reset UFW to default
+  ufw:
+    state: reset
+  when: ufw_reset | default(false)
+- name: Set UFW default policy - deny incoming
+  ufw:
+    direction: incoming
+    policy: deny
+- name: Set UFW default policy - allow outgoing
+  ufw:
+    direction: outgoing
+    policy: allow
+- name: Allow SSH
+  ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    comment: "SSH"
+- name: Allow Cosmos P2P port
+  ufw:
+    rule: allow
+    port: "{{ p2p_port | default(26656) }}"
+    proto: tcp
+    comment: "Cosmos P2P"
+- name: Allow Node Exporter port from monitoring server
+  ufw:
+    rule: allow
+    port: "{{ node_exporter_port | default(9100) }}"
+    proto: tcp
+    from_ip: "{{ hostvars[groups['monitoring'][0]]['ansible_host'] | default('any') }}"
+    comment: "Node Exporter"
+  when: groups['monitoring'] is defined and groups['monitoring'] | length > 0
+- name: Allow Cosmos Exporter port from monitoring server
+  ufw:
+    rule: allow
+    port: "{{ cosmos_exporter_port | default(9300) }}"
+    proto: tcp
+    from_ip: "{{ hostvars[groups['monitoring'][0]]['ansible_host'] | default('any') }}"
+    comment: "Cosmos Exporter"
+  when: groups['monitoring'] is defined and groups['monitoring'] | length > 0
+- name: Allow Tendermint Prometheus port from monitoring server
+  ufw:
+    rule: allow
+    port: "{{ prometheus_port | default(26660) }}"
+    proto: tcp
+    from_ip: "{{ hostvars[groups['monitoring'][0]]['ansible_host'] | default('any') }}"
+    comment: "Tendermint Prometheus"
+  when: groups['monitoring'] is defined and groups['monitoring'] | length > 0
+- name: Allow additional ports
+  ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    comment: "{{ item.comment | default('') }}"
+  loop: "{{ additional_ufw_ports | default([]) }}"
+  when: additional_ufw_ports is defined
+- name: Enable UFW
+  ufw:
+    state: enabled
+    logging: "on"
+- name: Check UFW status
+  command: ufw status verbose
+  register: ufw_status
+  changed_when: false
+- name: Display UFW status
+  debug:
+    var: ufw_status.stdout_lines
