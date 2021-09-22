@@ -1,0 +1,77 @@
+---
+- name: Check if Go is installed
+  command: /usr/local/go/bin/go version
+  register: go_check
+  ignore_errors: yes
+  changed_when: false
+- name: Get installed Go version
+  set_fact:
+    installed_go_version: "{{ go_check.stdout | regex_search('go([0-9]+\\.[0-9]+\\.[0-9]+)', '\\1') | first | default('0.0.0') }}"
+  when: go_check.rc == 0
+- name: Set installed Go version to none if not installed
+  set_fact:
+    installed_go_version: "0.0.0"
+  when: go_check.rc != 0
+- name: Debug Go versions
+  debug:
+    msg: "Installed: {{ installed_go_version }}, Required: {{ go_version }}"
+- name: Download Go tarball
+  get_url:
+    url: "https://go.dev/dl/go{{ go_version }}.{{ go_arch }}.tar.gz"
+    dest: "/tmp/go{{ go_version }}.{{ go_arch }}.tar.gz"
+    mode: '0644'
+  when: installed_go_version != go_version
+- name: Remove existing Go installation
+  file:
+    path: /usr/local/go
+    state: absent
+  when: installed_go_version != go_version
+- name: Extract Go tarball
+  unarchive:
+    src: "/tmp/go{{ go_version }}.{{ go_arch }}.tar.gz"
+    dest: /usr/local
+    remote_src: yes
+  when: installed_go_version != go_version
+- name: Clean up Go tarball
+  file:
+    path: "/tmp/go{{ go_version }}.{{ go_arch }}.tar.gz"
+    state: absent
+- name: Create Go directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ node_user }}"
+    group: "{{ node_group }}"
+  loop:
+    - "{{ go_path }}"
+    - "{{ go_path }}/bin"
+    - "{{ go_path }}/src"
+    - "{{ go_path }}/pkg"
+- name: Set Go environment variables in profile
+  blockinfile:
+    path: "{{ ansible_env.HOME }}/.profile"
+    marker: "
+    block: |
+      export GOROOT=/usr/local/go
+      export GOPATH={{ go_path }}
+      export PATH=$PATH:/usr/local/go/bin:{{ go_path }}/bin
+    create: yes
+- name: Set Go environment variables in bashrc
+  blockinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    marker: "
+    block: |
+      export GOROOT=/usr/local/go
+      export GOPATH={{ go_path }}
+      export PATH=$PATH:/usr/local/go/bin:{{ go_path }}/bin
+    create: yes
+- name: Verify Go installation
+  shell: source {{ ansible_env.HOME }}/.profile && go version
+  args:
+    executable: /bin/bash
+  register: go_version_check
+  changed_when: false
+- name: Display Go version
+  debug:
+    var: go_version_check.stdout
