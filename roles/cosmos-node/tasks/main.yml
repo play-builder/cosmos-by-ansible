@@ -1,0 +1,104 @@
+---
+- name: Include chain variables
+  include_vars:
+    file: "{{ playbook_dir }}/../chain_vars/{{ chain_name }}.yml"
+- name: Display chain configuration
+  debug:
+    msg: |
+      Chain: {{ chain_name }}
+      Chain ID: {{ chain_id }}
+      Binary: {{ binary_name }}
+      Version: {{ binary_version }}
+      Home: {{ daemon_home }}
+- name: Clone chain repository
+  git:
+    repo: "{{ binary_repo }}"
+    dest: "{{ go_path }}/src/{{ chain_name }}"
+    version: "{{ binary_version }}"
+    force: yes
+  when: build_from_source | default(true)
+- name: Build chain binary
+  shell: |
+    source {{ ansible_env.HOME }}/.profile
+    cd {{ go_path }}/src/{{ chain_name }}
+    make install
+  args:
+    executable: /bin/bash
+  environment:
+    GOPATH: "{{ go_path }}"
+    PATH: "{{ ansible_env.PATH }}:/usr/local/go/bin:{{ go_path }}/bin"
+  when: build_from_source | default(true)
+- name: Verify binary installation
+  shell: "{{ go_path }}/bin/{{ binary_name }} version"
+  register: binary_version_check
+  changed_when: false
+- name: Display binary version
+  debug:
+    var: binary_version_check.stdout_lines
+- name: Check if node is already initialized
+  stat:
+    path: "{{ daemon_home }}/config/genesis.json"
+  register: genesis_exists
+- name: Initialize node
+  shell: |
+    source {{ ansible_env.HOME }}/.profile
+    {{ go_path }}/bin/{{ binary_name }} init {{ moniker }} --chain-id={{ chain_id }} --home={{ daemon_home }}
+  args:
+    executable: /bin/bash
+  when: not genesis_exists.stat.exists
+- name: Copy binary to Cosmovisor genesis
+  copy:
+    src: "{{ go_path }}/bin/{{ binary_name }}"
+    dest: "{{ daemon_home }}/cosmovisor/genesis/bin/{{ binary_name }}"
+    mode: '0755'
+    remote_src: yes
+- name: Create current symlink
+  file:
+    src: "{{ daemon_home }}/cosmovisor/genesis"
+    dest: "{{ daemon_home }}/cosmovisor/current"
+    state: link
+  when: not genesis_exists.stat.exists
+- name: Configure config.toml
+  template:
+    src: config.toml.j2
+    dest: "{{ daemon_home }}/config/config.toml"
+    backup: yes
+  notify: Restart cosmovisor
+- name: Configure app.toml
+  template:
+    src: app.toml.j2
+    dest: "{{ daemon_home }}/config/app.toml"
+    backup: yes
+  notify: Restart cosmovisor
+- name: Configure client.toml
+  template:
+    src: client.toml.j2
+    dest: "{{ daemon_home }}/config/client.toml"
+    backup: yes
+- name: Create key backup
+  fetch:
+    src: "{{ daemon_home }}/config/{{ item }}"
+    dest: "{{ backup_dir }}/{{ inventory_hostname }}/{{ chain_name }}/"
+    flat: yes
+  loop: "{{ backup_keys }}"
+  when: backup_enabled | default(true)
+  ignore_errors: yes
+- name: Display node information
+  debug:
+    msg: |
+      =====================================
+      Node Setup Complete
+      =====================================
+      Chain: {{ chain_name }}
+      Chain ID: {{ chain_id }}
+      Home: {{ daemon_home }}
+      Moniker: {{ moniker }}
+      =====================================
+      Next Steps:
+      1. Genesis 파일을 수동으로 다운로드하여 복사:
+         {{ daemon_home }}/config/genesis.json
+      2. 노드 시작:
+         systemctl start cosmovisor
+      3. 로그 확인:
+         journalctl -u cosmovisor -f
+      =====================================
