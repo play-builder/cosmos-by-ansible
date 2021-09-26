@@ -1,0 +1,13 @@
+---
+- name: Restart cosmovisor
+  systemd:
+    name: cosmovisor
+    state: restarted
+- name: Stop cosmovisor
+  systemd:
+    name: cosmovisor
+    state: stopped
+- name: Start cosmovisor
+  systemd:
+    name: cosmovisor
+    state: started
