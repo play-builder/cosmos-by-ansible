@@ -1,0 +1,64 @@
+minimum-gas-prices = "{{ minimum_gas_prices }}"
+pruning = "{{ pruning | default('custom') }}"
+pruning-keep-recent = "{{ pruning_keep_recent | default('100') }}"
+pruning-keep-every = "{{ pruning_keep_every | default('0') }}"
+pruning-interval = "{{ pruning_interval | default('10') }}"
+halt-height = 0
+halt-time = 0
+min-retain-blocks = 0
+inter-block-cache = true
+index-events = []
+iavl-cache-size = 781250
+iavl-disable-fastnode = false
+app-db-backend = ""
+[telemetry]
+service-name = "{{ chain_name | default('cosmos') }}"
+enabled = true
+enable-hostname = false
+enable-hostname-label = false
+enable-service-label = true
+prometheus-retention-time = 60
+global-labels = []
+[api]
+enable = false
+swagger = false
+address = "tcp://127.0.0.1:{{ api_port | default(1317) }}"
+max-open-connections = 1000
+rpc-read-timeout = 10
+rpc-write-timeout = 0
+rpc-max-body-bytes = 1000000
+enabled-unsafe-cors = false
+[rosetta]
+enable = false
+address = ":8080"
+blockchain = "app"
+network = "network"
+retries = 3
+offline = false
+[grpc]
+enable = false
+address = "127.0.0.1:{{ grpc_port | default(9090) }}"
+max-recv-msg-size = "10485760"
+max-send-msg-size = "2147483647"
+[grpc-web]
+enable = false
+address = "127.0.0.1:{{ grpc_web_port | default(9091) }}"
+enable-unsafe-cors = false
+[state-sync]
+snapshot-interval = {{ snapshot_interval | default(0) }}
+snapshot-keep-recent = {{ snapshot_keep_recent | default(2) }}
+[wasm]
+query_gas_limit = 300000
+lru_size = 0
+[store]
+streamers = []
+[streamers]
+[streamers.file]
+keys = ["*", ]
+write_dir = ""
+prefix = ""
+output-metadata = true
+stop-node-on-error = true
+fsync = false
+[mempool]
+max-txs = 5000
