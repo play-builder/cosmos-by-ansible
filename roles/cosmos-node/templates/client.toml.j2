@@ -1,0 +1,5 @@
+chain-id = "{{ chain_id }}"
+keyring-backend = "file"
+output = "text"
+node = "tcp://localhost:{{ rpc_port | default(26657) }}"
+broadcast-mode = "sync"
