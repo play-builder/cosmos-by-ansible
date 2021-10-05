@@ -1,0 +1,26 @@
+---
+- name: Setup base configuration for all servers
+  hosts: all
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Display target information
+      debug:
+        msg: |
+          =====================================
+          Setting up base configuration
+          Host: {{ inventory_hostname }}
+          IP: {{ ansible_host }}
+          =====================================
+    - name: Include common role
+      include_role:
+        name: common
+    - name: Setup UFW firewall
+      include_tasks: "{{ playbook_dir }}/../roles/common/tasks/ufw.yml"
+      when: ufw_enabled | default(true)
+    - name: Display completion message
+      debug:
+        msg: |
+          =====================================
+          Base setup complete for {{ inventory_hostname }}
+          =====================================
