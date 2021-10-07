@@ -1,0 +1,78 @@
+---
+- name: Setup Cosmos Node
+  hosts: validators
+  become: yes
+  gather_facts: yes
+  vars:
+    target_chain: "{{ chain_name | default('') }}"
+  pre_tasks:
+    - name: Validate target chain
+      fail:
+        msg: |
+          target_chain 또는 chain_name 변수가 필요합니다.
+          사용법: ansible-playbook playbooks/setup-node.yml -e "target_chain=sei"
+      when: target_chain == '' and chain_name is not defined
+    - name: Set chain_name from target_chain
+      set_fact:
+        chain_name: "{{ target_chain }}"
+      when: target_chain != ''
+    - name: Check if chain config exists
+      local_action:
+        module: stat
+        path: "{{ playbook_dir }}/../chain_vars/{{ chain_name }}.yml"
+      register: chain_config
+      become: no
+    - name: Fail if chain config not found
+      fail:
+        msg: |
+          체인 설정 파일을 찾을 수 없습니다: chain_vars/{{ chain_name }}.yml
+          새 체인을 추가하려면 chain_vars/template.yml을 복사하여 설정하세요.
+      when: not chain_config.stat.exists
+    - name: Load chain variables
+      include_vars:
+        file: "{{ playbook_dir }}/../chain_vars/{{ chain_name }}.yml"
+    - name: Display setup information
+      debug:
+        msg: |
+          =====================================
+          Setting up Cosmos Node
+          =====================================
+          Host: {{ inventory_hostname }}
+          Chain: {{ chain_name }}
+          Chain ID: {{ chain_id }}
+          Binary: {{ binary_name }} {{ binary_version }}
+          Home: {{ daemon_home }}
+          Moniker: {{ moniker }}
+          =====================================
+  tasks:
+    - name: Setup Go language
+      include_role:
+        name: golang
+    - name: Setup Cosmovisor
+      include_role:
+        name: cosmovisor
+    - name: Setup Cosmos Node
+      include_role:
+        name: cosmos-node
+  post_tasks:
+    - name: Display next steps
+      debug:
+        msg: |
+          =====================================
+          Node Setup Complete!
+          =====================================
+          다음 단계:
+          1. Genesis 파일 다운로드 및 복사:
+             wget <genesis_url> -O genesis.json
+             cp genesis.json {{ daemon_home }}/config/genesis.json
+          2. (선택) 스냅샷으로 빠른 동기화:
+             ansible-playbook playbooks/restore-snapshot.yml \
+               -e "target_chain={{ chain_name }}" \
+               -e "snapshot_url=https://..."
+          3. 노드 시작:
+             systemctl start cosmovisor
+          4. 로그 확인:
+             journalctl -u cosmovisor -f
+          5. 동기화 상태 확인:
+             {{ binary_name }} status --home {{ daemon_home }} | jq .SyncInfo
+          =====================================
