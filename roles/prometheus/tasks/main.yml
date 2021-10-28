@@ -1,0 +1,110 @@
+---
+- name: Create prometheus user
+  user:
+    name: prometheus
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+- name: Create prometheus directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: prometheus
+    group: prometheus
+  loop:
+    - "{{ prometheus_config_dir }}"
+    - "{{ prometheus_data_dir }}"
+    - "{{ prometheus_config_dir }}/rules"
+    - "{{ prometheus_config_dir }}/targets"
+- name: Download prometheus
+  get_url:
+    url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+    dest: "/tmp/prometheus-{{ prometheus_version }}.tar.gz"
+    mode: '0644'
+  register: prometheus_download
+- name: Extract prometheus
+  unarchive:
+    src: "/tmp/prometheus-{{ prometheus_version }}.tar.gz"
+    dest: /tmp
+    remote_src: yes
+  when: prometheus_download.changed
+- name: Install prometheus binaries
+  copy:
+    src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    mode: '0755'
+    owner: root
+    group: root
+    remote_src: yes
+  loop:
+    - prometheus
+    - promtool
+  notify: Restart prometheus
+- name: Install prometheus console files
+  copy:
+    src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/{{ item }}"
+    dest: "{{ prometheus_config_dir }}/{{ item }}"
+    owner: prometheus
+    group: prometheus
+    remote_src: yes
+  loop:
+    - consoles
+    - console_libraries
+- name: Clean up downloaded files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/prometheus-{{ prometheus_version }}.tar.gz"
+    - "/tmp/prometheus-{{ prometheus_version }}.linux-amd64"
+- name: Build validator targets list
+  set_fact:
+    validator_hosts: "{{ groups['validators'] | default([]) }}"
+- name: Create prometheus configuration
+  template:
+    src: prometheus.yml.j2
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: prometheus
+    group: prometheus
+    mode: '0644'
+    validate: "/usr/local/bin/promtool check config %s"
+  notify: Restart prometheus
+- name: Create prometheus alert rules
+  template:
+    src: alert_rules.yml.j2
+    dest: "{{ prometheus_config_dir }}/rules/alert_rules.yml"
+    owner: prometheus
+    group: prometheus
+    mode: '0644'
+  notify: Restart prometheus
+- name: Create node targets file
+  template:
+    src: node_targets.yml.j2
+    dest: "{{ prometheus_config_dir }}/targets/node_targets.yml"
+    owner: prometheus
+    group: prometheus
+    mode: '0644'
+  notify: Reload prometheus
+- name: Create prometheus systemd service
+  template:
+    src: prometheus.service.j2
+    dest: /etc/systemd/system/prometheus.service
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart prometheus
+- name: Enable and start prometheus
+  systemd:
+    name: prometheus
+    state: started
+    enabled: yes
+    daemon_reload: yes
+- name: Verify prometheus is running
+  uri:
+    url: "http://localhost:{{ prometheus_port }}/-/healthy"
+    status_code: 200
+  register: prometheus_health
+  retries: 3
+  delay: 5
+  until: prometheus_health.status == 200
