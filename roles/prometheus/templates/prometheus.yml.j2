@@ -1,0 +1,55 @@
+global:
+  scrape_interval: {{ prometheus_scrape_interval | default('15s') }}
+  evaluation_interval: {{ prometheus_evaluation_interval | default('15s') }}
+  external_labels:
+    monitor: 'cosmos-monitor'
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - localhost:{{ alertmanager_port | default(9093) }}
+rule_files:
+  - "rules/*.yml"
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:{{ prometheus_port }}']
+  - job_name: 'node_exporter'
+    file_sd_configs:
+      - files:
+          - 'targets/node_targets.yml'
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):\d+'
+        replacement: '${1}'
+  - job_name: 'cosmos'
+    file_sd_configs:
+      - files:
+          - 'targets/node_targets.yml'
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __address__
+        regex: '([^:]+):\d+'
+        replacement: '${1}:{{ prometheus_port | default(26660) }}'
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):\d+'
+        replacement: '${1}'
+    metrics_path: /metrics
+  - job_name: 'cosmos_exporter'
+    file_sd_configs:
+      - files:
+          - 'targets/node_targets.yml'
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __address__
+        regex: '([^:]+):\d+'
+        replacement: '${1}:{{ cosmos_exporter_port | default(9300) }}'
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+):\d+'
+        replacement: '${1}'
