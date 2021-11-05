@@ -1,0 +1,25 @@
+[Unit]
+Description=Prometheus Server
+Documentation=https://prometheus.io/docs/introduction/overview/
+Wants=network-online.target
+After=network-online.target
+[Service]
+User=prometheus
+Group=prometheus
+Type=simple
+ExecStart=/usr/local/bin/prometheus \
+    --config.file={{ prometheus_config_dir }}/prometheus.yml \
+    --storage.tsdb.path={{ prometheus_data_dir }} \
+    --storage.tsdb.retention.time={{ prometheus_retention_time | default('30d') }} \
+    --storage.tsdb.retention.size={{ prometheus_retention_size | default('50GB') }} \
+    --web.listen-address=:{{ prometheus_port }} \
+    --web.console.templates={{ prometheus_config_dir }}/consoles \
+    --web.console.libraries={{ prometheus_config_dir }}/console_libraries \
+    --web.enable-lifecycle \
+    --web.enable-admin-api
+ExecReload=/bin/kill -HUP $MAINPID
+SyslogIdentifier=prometheus
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
