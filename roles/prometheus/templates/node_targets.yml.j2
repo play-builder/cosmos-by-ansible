@@ -1,0 +1,9 @@
+{% for host in groups['validators'] | default([]) %}
+- targets:
+    - {{ hostvars[host]['ansible_host'] }}:{{ node_exporter_port | default(9100) }}
+  labels:
+    job: node_exporter
+    chain: {{ hostvars[host]['chain_name'] | default('unknown') }}
+    moniker: {{ hostvars[host]['moniker'] | default(host) }}
+    hostname: {{ host }}
+{% endfor %}
