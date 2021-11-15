@@ -1,0 +1,70 @@
+---
+- name: Set node exporter version
+  set_fact:
+    node_exporter_version: "{{ node_exporter_version | default('1.7.0') }}"
+- name: Check if node_exporter is installed
+  stat:
+    path: /usr/local/bin/node_exporter
+  register: node_exporter_binary
+- name: Get current node_exporter version
+  shell: /usr/local/bin/node_exporter --version 2>&1 | head -1 | awk '{print $3}'
+  register: current_node_exporter_version
+  when: node_exporter_binary.stat.exists
+  changed_when: false
+- name: Create node_exporter user
+  user:
+    name: node_exporter
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+- name: Download node_exporter
+  get_url:
+    url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+    dest: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+    mode: '0644'
+  when: not node_exporter_binary.stat.exists or (current_node_exporter_version.stdout | default('') != node_exporter_version)
+- name: Extract node_exporter
+  unarchive:
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+    dest: /tmp
+    remote_src: yes
+  when: not node_exporter_binary.stat.exists or (current_node_exporter_version.stdout | default('') != node_exporter_version)
+- name: Install node_exporter binary
+  copy:
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter"
+    dest: /usr/local/bin/node_exporter
+    mode: '0755'
+    owner: root
+    group: root
+    remote_src: yes
+  notify: Restart node_exporter
+  when: not node_exporter_binary.stat.exists or (current_node_exporter_version.stdout | default('') != node_exporter_version)
+- name: Clean up downloaded files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+    - "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
+- name: Create node_exporter systemd service
+  template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart node_exporter
+- name: Enable and start node_exporter
+  systemd:
+    name: node_exporter
+    state: started
+    enabled: yes
+    daemon_reload: yes
+- name: Verify node_exporter is running
+  uri:
+    url: "http://localhost:{{ node_exporter_port }}/metrics"
+    status_code: 200
+  register: node_exporter_status
+  retries: 3
+  delay: 5
+  until: node_exporter_status.status == 200
