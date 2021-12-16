@@ -1,0 +1,36 @@
+---
+prometheus_version: "2.51.0"
+prometheus_retention_time: "30d"
+prometheus_retention_size: "50GB"
+prometheus_scrape_interval: "15s"
+prometheus_evaluation_interval: "15s"
+prometheus_port: 9090
+prometheus_data_dir: "/var/lib/prometheus"
+prometheus_config_dir: "/etc/prometheus"
+grafana_version: "10.4.1"
+grafana_port: 3000
+grafana_admin_user: "admin"
+grafana_admin_password: "admin"
+grafana_data_dir: "/var/lib/grafana"
+grafana_config_dir: "/etc/grafana"
+alertmanager_version: "0.27.0"
+alertmanager_port: 9093
+alertmanager_cluster_port: 9094
+alertmanager_data_dir: "/var/lib/alertmanager"
+alertmanager_config_dir: "/etc/alertmanager"
+slack_webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+slack_channel: "
+slack_username: "Cosmos Alertmanager"
+alert_node_down_threshold: "2m"
+alert_high_block_miss_threshold: 100
+alert_disk_usage_threshold: 85
+alert_memory_usage_threshold: 90
+alert_cpu_usage_threshold: 90
+monitoring_ufw_allowed_ports:
+  - { port: 22, proto: tcp, comment: "SSH" }
+  - { port: "{{ prometheus_port }}", proto: tcp, comment: "Prometheus" }
+  - { port: "{{ grafana_port }}", proto: tcp, comment: "Grafana" }
+  - { port: "{{ alertmanager_port }}", proto: tcp, comment: "Alertmanager" }
+node_exporter_targets: []
+cosmos_exporter_targets: []
+tendermint_targets: []
