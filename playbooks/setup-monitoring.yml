@@ -1,0 +1,62 @@
+---
+- name: Setup Monitoring Server
+  hosts: monitoring
+  become: yes
+  gather_facts: yes
+  pre_tasks:
+    - name: Display setup information
+      debug:
+        msg: |
+          =====================================
+          Setting up Monitoring Server
+          =====================================
+          Host: {{ inventory_hostname }}
+          IP: {{ ansible_host }}
+          Components:
+          - Prometheus {{ prometheus_version }}
+          - Grafana {{ grafana_version }}
+          - Alertmanager {{ alertmanager_version }}
+          =====================================
+    - name: Setup UFW for monitoring server
+      ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: tcp
+        comment: "{{ item.comment }}"
+      loop:
+        - { port: "22", comment: "SSH" }
+        - { port: "{{ prometheus_port }}", comment: "Prometheus" }
+        - { port: "{{ grafana_port }}", comment: "Grafana" }
+        - { port: "{{ alertmanager_port }}", comment: "Alertmanager" }
+      when: ufw_enabled | default(true)
+  tasks:
+    - name: Setup Prometheus
+      include_role:
+        name: prometheus
+    - name: Setup Alertmanager
+      include_role:
+        name: alertmanager
+    - name: Setup Grafana
+      include_role:
+        name: grafana
+  post_tasks:
+    - name: Display access information
+      debug:
+        msg: |
+          =====================================
+          Monitoring Server Setup Complete!
+          =====================================
+          접속 정보:
+          Prometheus:
+            URL: http://{{ ansible_host }}:{{ prometheus_port }}
+          Grafana:
+            URL: http://{{ ansible_host }}:{{ grafana_port }}
+            Username: {{ grafana_admin_user }}
+            Password: {{ grafana_admin_password }}
+          Alertmanager:
+            URL: http://{{ ansible_host }}:{{ alertmanager_port }}
+          다음 단계:
+          1. Grafana 최초 로그인 후 비밀번호 변경
+          2. inventory/group_vars/monitoring.yml에서 Slack Webhook URL 설정
+          3. 노드에 Exporter 설치: ansible-playbook playbooks/setup-exporters.yml
+          =====================================
