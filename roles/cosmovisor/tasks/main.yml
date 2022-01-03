@@ -1,0 +1,56 @@
+---
+- name: Install Cosmovisor
+  shell: |
+    source {{ ansible_env.HOME }}/.profile
+    go install cosmossdk.io/tools/cosmovisor/cmd/cosmovisor@{{ cosmovisor_version }}
+  args:
+    executable: /bin/bash
+    creates: "{{ go_path }}/bin/cosmovisor"
+  environment:
+    GOPATH: "{{ go_path }}"
+    PATH: "{{ ansible_env.PATH }}:/usr/local/go/bin:{{ go_path }}/bin"
+- name: Verify Cosmovisor installation
+  shell: "{{ go_path }}/bin/cosmovisor version"
+  register: cosmovisor_check
+  changed_when: false
+  ignore_errors: yes
+- name: Display Cosmovisor version
+  debug:
+    var: cosmovisor_check.stdout_lines
+  when: cosmovisor_check.rc == 0
+- name: Create Cosmovisor directory structure
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ node_user }}"
+    group: "{{ node_group }}"
+  loop:
+    - "{{ daemon_home }}"
+    - "{{ daemon_home }}/cosmovisor"
+    - "{{ daemon_home }}/cosmovisor/genesis"
+    - "{{ daemon_home }}/cosmovisor/genesis/bin"
+    - "{{ daemon_home }}/cosmovisor/upgrades"
+- name: Set Cosmovisor environment variables in profile
+  blockinfile:
+    path: "{{ ansible_env.HOME }}/.profile"
+    marker: "
+    block: |
+      export DAEMON_NAME={{ binary_name }}
+      export DAEMON_HOME={{ daemon_home }}
+      export DAEMON_ALLOW_DOWNLOAD_BINARIES={{ cosmovisor_allow_download_binaries }}
+      export DAEMON_RESTART_AFTER_UPGRADE={{ cosmovisor_restart_after_upgrade }}
+      export DAEMON_LOG_BUFFER_SIZE={{ cosmovisor_log_buffer_size }}
+      export UNSAFE_SKIP_BACKUP={{ cosmovisor_unsafe_skip_backup }}
+    create: yes
+- name: Create Cosmovisor systemd service
+  template:
+    src: cosmovisor.service.j2
+    dest: /etc/systemd/system/cosmovisor.service
+    mode: '0644'
+  notify: Reload systemd
+- name: Enable Cosmovisor service
+  systemd:
+    name: cosmovisor
+    enabled: yes
+    daemon_reload: yes
