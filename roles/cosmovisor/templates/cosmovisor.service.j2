@@ -1,0 +1,24 @@
+[Unit]
+Description=Cosmovisor Process Manager for {{ chain_name | default('cosmos') }}
+After=network-online.target
+[Service]
+User={{ node_user }}
+Group={{ node_group }}
+ExecStart={{ go_path }}/bin/cosmovisor run start --home={{ daemon_home }}
+Restart=always
+RestartSec={{ service_restart_sec | default(10) }}
+LimitNOFILE={{ service_limit_nofile | default(65535) }}
+Environment="DAEMON_NAME={{ binary_name }}"
+Environment="DAEMON_HOME={{ daemon_home }}"
+Environment="DAEMON_ALLOW_DOWNLOAD_BINARIES={{ cosmovisor_allow_download_binaries }}"
+Environment="DAEMON_RESTART_AFTER_UPGRADE={{ cosmovisor_restart_after_upgrade }}"
+Environment="DAEMON_LOG_BUFFER_SIZE={{ cosmovisor_log_buffer_size }}"
+Environment="UNSAFE_SKIP_BACKUP={{ cosmovisor_unsafe_skip_backup }}"
+Environment="DAEMON_PREUPGRADE_MAX_RETRIES=0"
+Environment="GOPATH={{ go_path }}"
+Environment="PATH=/usr/local/go/bin:{{ go_path }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier={{ binary_name }}
+[Install]
+WantedBy=multi-user.target
