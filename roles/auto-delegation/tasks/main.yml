@@ -1,0 +1,73 @@
+---
+# ============================================
+# Auto Delegation Script Setup
+# 자동 리워드 재위임 스크립트
+# ============================================
+
+- name: Include chain variables
+  include_vars:
+    file: "{{ playbook_dir }}/../chain_vars/{{ chain_name }}.yml"
+
+- name: Create scripts directory
+  file:
+    path: "{{ daemon_home }}/scripts"
+    state: directory
+    mode: '0755'
+    owner: "{{ node_user }}"
+    group: "{{ node_group }}"
+
+- name: Create auto-delegation script
+  template:
+    src: auto_delegation.sh.j2
+    dest: "{{ daemon_home }}/scripts/auto_delegation.sh"
+    mode: '0755'
+    owner: "{{ node_user }}"
+    group: "{{ node_group }}"
+
+- name: Create auto-delegation config
+  template:
+    src: auto_delegation.conf.j2
+    dest: "{{ daemon_home }}/scripts/auto_delegation.conf"
+    mode: '0600'
+    owner: "{{ node_user }}"
+    group: "{{ node_group }}"
+
+- name: Create auto-delegation systemd service
+  template:
+    src: auto_delegation.service.j2
+    dest: /etc/systemd/system/auto-delegation-{{ chain_name }}.service
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Create auto-delegation systemd timer
+  template:
+    src: auto_delegation.timer.j2
+    dest: /etc/systemd/system/auto-delegation-{{ chain_name }}.timer
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Enable auto-delegation timer
+  systemd:
+    name: "auto-delegation-{{ chain_name }}.timer"
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  when: auto_delegation_enabled | default(false)
+
+- name: Display auto-delegation information
+  debug:
+    msg: |
+      =====================================
+      Auto Delegation Setup Complete
+      =====================================
+      Chain: {{ chain_name }}
+      Script: {{ daemon_home }}/scripts/auto_delegation.sh
+      Timer: auto-delegation-{{ chain_name }}.timer
+      Interval: {{ auto_delegation_interval | default(3600) }} seconds
+      Keep Amount: {{ auto_delegation_keep_amount | default(30000) }} {{ denom }}
+      
+      Commands:
+      - Manual run: {{ daemon_home }}/scripts/auto_delegation.sh
+      - Check timer: systemctl status auto-delegation-{{ chain_name }}.timer
+      - View logs: journalctl -u auto-delegation-{{ chain_name }}.service
+      =====================================
