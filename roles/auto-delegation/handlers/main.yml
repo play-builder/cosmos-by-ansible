@@ -1,0 +1,13 @@
+---
+# ============================================
+# Auto Delegation Handlers
+# ============================================
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Restart auto-delegation timer
+  systemd:
+    name: "auto-delegation-{{ chain_name }}.timer"
+    state: restarted
