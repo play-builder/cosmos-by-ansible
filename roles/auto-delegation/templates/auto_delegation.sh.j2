@@ -1,0 +1,219 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Auto Delegation Script for {{ chain_name }}
+# 자동 리워드 재위임 스크립트
+
+set -e
+
+# Load configuration
+source "{{ daemon_home }}/scripts/auto_delegation.conf"
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+log_error() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $1" >&2
+}
+
+# Check if node is synced
+check_sync() {
+    local catching_up=$({{ go_path }}/bin/{{ binary_name }} status --home {{ daemon_home }} 2>&1 | jq -r '.SyncInfo.catching_up // .sync_info.catching_up')
+    if [ "$catching_up" == "true" ]; then
+        log_error "Node is still syncing. Skipping delegation."
+        exit 1
+    fi
+}
+
+# Get validator address
+get_validator_address() {
+    if [ -n "$VALOPER_ADDRESS" ]; then
+        echo "$VALOPER_ADDRESS"
+    else
+        {{ go_path }}/bin/{{ binary_name }} keys show $WALLET_NAME --bech val --home {{ daemon_home }} --keyring-backend file -a 2>/dev/null
+    fi
+}
+
+# Get wallet address
+get_wallet_address() {
+    if [ -n "$WALLET_ADDRESS" ]; then
+        echo "$WALLET_ADDRESS"
+    else
+        {{ go_path }}/bin/{{ binary_name }} keys show $WALLET_NAME --home {{ daemon_home }} --keyring-backend file -a 2>/dev/null
+    fi
+}
+
+# Get current balance
+get_balance() {
+    local address=$1
+    {{ go_path }}/bin/{{ binary_name }} query bank balances $address --home {{ daemon_home }} --output json 2>/dev/null | \
+        jq -r ".balances[] | select(.denom==\"$DENOM\") | .amount // \"0\""
+}
+
+# Get pending rewards
+get_rewards() {
+    local valoper=$1
+    local wallet=$2
+    {{ go_path }}/bin/{{ binary_name }} query distribution rewards $wallet $valoper --home {{ daemon_home }} --output json 2>/dev/null | \
+        jq -r ".rewards[] | select(.denom==\"$DENOM\") | .amount // \"0\"" | cut -d'.' -f1
+}
+
+# Get commission
+get_commission() {
+    local valoper=$1
+    {{ go_path }}/bin/{{ binary_name }} query distribution commission $valoper --home {{ daemon_home }} --output json 2>/dev/null | \
+        jq -r ".commission.commission[] | select(.denom==\"$DENOM\") | .amount // \"0\"" | cut -d'.' -f1
+}
+
+# Withdraw rewards
+withdraw_rewards() {
+    local valoper=$1
+    log "Withdrawing rewards from validator..."
+    
+    {{ go_path }}/bin/{{ binary_name }} tx distribution withdraw-rewards $valoper \
+        --from $WALLET_NAME \
+        --commission \
+        --chain-id $CHAIN_ID \
+        --home {{ daemon_home }} \
+        --keyring-backend file \
+        --gas auto \
+        --gas-adjustment 1.5 \
+        --gas-prices $GAS_PRICES \
+        --yes \
+        --output json 2>&1 | tee /tmp/withdraw_tx.json
+    
+    # Wait for tx to be included
+    sleep 10
+    
+    local txhash=$(jq -r '.txhash // empty' /tmp/withdraw_tx.json)
+    if [ -n "$txhash" ]; then
+        log "Withdraw TX: $txhash"
+        return 0
+    else
+        log_error "Failed to withdraw rewards"
+        return 1
+    fi
+}
+
+# Delegate tokens
+delegate_tokens() {
+    local valoper=$1
+    local amount=$2
+    
+    log "Delegating ${amount}${DENOM} to validator..."
+    
+    {{ go_path }}/bin/{{ binary_name }} tx staking delegate $valoper ${amount}${DENOM} \
+        --from $WALLET_NAME \
+        --chain-id $CHAIN_ID \
+        --home {{ daemon_home }} \
+        --keyring-backend file \
+        --gas auto \
+        --gas-adjustment 1.5 \
+        --gas-prices $GAS_PRICES \
+        --yes \
+        --output json 2>&1 | tee /tmp/delegate_tx.json
+    
+    # Wait for tx to be included
+    sleep 10
+    
+    local txhash=$(jq -r '.txhash // empty' /tmp/delegate_tx.json)
+    if [ -n "$txhash" ]; then
+        log "Delegate TX: $txhash"
+        return 0
+    else
+        log_error "Failed to delegate tokens"
+        return 1
+    fi
+}
+
+# Send Slack notification
+send_slack_notification() {
+    local message=$1
+    if [ -n "$SLACK_WEBHOOK" ]; then
+        curl -s -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"[$CHAIN_NAME] $message\"}" \
+            "$SLACK_WEBHOOK" > /dev/null
+    fi
+}
+
+# Main execution
+main() {
+    log "=========================================="
+    log "Starting Auto Delegation for {{ chain_name }}"
+    log "=========================================="
+    
+    # Check sync status
+    check_sync
+    
+    # Get addresses
+    local valoper=$(get_validator_address)
+    local wallet=$(get_wallet_address)
+    
+    if [ -z "$valoper" ] || [ -z "$wallet" ]; then
+        log_error "Could not determine validator or wallet address"
+        exit 1
+    fi
+    
+    log "Validator: $valoper"
+    log "Wallet: $wallet"
+    
+    # Get current balance
+    local balance=$(get_balance $wallet)
+    log "Current balance: ${balance}${DENOM}"
+    
+    # Get pending rewards
+    local rewards=$(get_rewards $valoper $wallet)
+    log "Pending rewards: ${rewards}${DENOM}"
+    
+    # Get commission
+    local commission=$(get_commission $valoper)
+    log "Pending commission: ${commission}${DENOM}"
+    
+    # Calculate total pending
+    local total_pending=$((${rewards:-0} + ${commission:-0}))
+    log "Total pending: ${total_pending}${DENOM}"
+    
+    # Check minimum threshold
+    if [ "$total_pending" -lt "$MIN_REWARDS_THRESHOLD" ]; then
+        log "Pending rewards ($total_pending) below threshold ($MIN_REWARDS_THRESHOLD). Skipping."
+        exit 0
+    fi
+    
+    # Withdraw rewards
+    if ! withdraw_rewards $valoper; then
+        send_slack_notification "❌ Failed to withdraw rewards"
+        exit 1
+    fi
+    
+    # Get new balance after withdrawal
+    sleep 5
+    local new_balance=$(get_balance $wallet)
+    log "Balance after withdrawal: ${new_balance}${DENOM}"
+    
+    # Calculate amount to delegate (keep minimum for fees)
+    local delegate_amount=$((new_balance - KEEP_AMOUNT))
+    
+    if [ "$delegate_amount" -le 0 ]; then
+        log "Not enough balance to delegate after keeping ${KEEP_AMOUNT}${DENOM}"
+        exit 0
+    fi
+    
+    log "Amount to delegate: ${delegate_amount}${DENOM}"
+    
+    # Delegate
+    if delegate_tokens $valoper $delegate_amount; then
+        send_slack_notification "✅ Auto-delegated ${delegate_amount}${DENOM}"
+        log "Auto delegation completed successfully!"
+    else
+        send_slack_notification "❌ Failed to delegate tokens"
+        exit 1
+    fi
+    
+    log "=========================================="
+    log "Auto Delegation Complete"
+    log "=========================================="
+}
+
+# Run main function
+main "$@"
