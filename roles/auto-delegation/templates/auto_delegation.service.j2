@@ -1,0 +1,18 @@
+[Unit]
+Description=Auto Delegation Service for {{ chain_name }}
+After=network-online.target cosmovisor.service
+
+[Service]
+Type=oneshot
+User={{ node_user }}
+Group={{ node_group }}
+ExecStart={{ daemon_home }}/scripts/auto_delegation.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=auto-delegation-{{ chain_name }}
+
+# Environment
+Environment="PATH=/usr/local/go/bin:{{ go_path }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+[Install]
+WantedBy=multi-user.target
