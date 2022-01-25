@@ -1,0 +1,11 @@
+[Unit]
+Description=Auto Delegation Timer for {{ chain_name }}
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec={{ auto_delegation_interval | default(3600) }}s
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target
