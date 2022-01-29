@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+# Auto Delegation Configuration for {{ chain_name }}
+
+# Chain settings
+CHAIN_NAME="{{ chain_name }}"
+CHAIN_ID="{{ chain_id }}"
+DENOM="{{ denom }}"
+GAS_PRICES="{{ minimum_gas_prices }}"
+
+# Wallet settings
+# 수동으로 지갑 이름 설정 필요
+WALLET_NAME="validator"
+
+# Validator addresses (선택적 - 지갑 이름으로 자동 조회 가능)
+# VALOPER_ADDRESS="{{ valoper_address | default('') }}"
+# WALLET_ADDRESS="{{ validator_address | default('') }}"
+
+# Delegation settings
+KEEP_AMOUNT={{ auto_delegation_keep_amount | default(30000) }}  # 최소 유지 금액 (수수료용)
+MIN_REWARDS_THRESHOLD={{ auto_delegation_min_threshold | default(1000000) }}  # 최소 리워드 임계값
+
+# Slack notification (선택적)
+SLACK_WEBHOOK="{{ slack_webhook_url | default('') }}"
