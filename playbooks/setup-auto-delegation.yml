@@ -1,0 +1,60 @@
+---
+- name: Setup Auto Delegation
+  hosts: validators
+  become: yes
+  gather_facts: yes
+  vars:
+    target_chain: "{{ chain_name | default('') }}"
+  pre_tasks:
+    - name: Validate target chain
+      fail:
+        msg: |
+          target_chain 변수가 필요합니다.
+          사용법: ansible-playbook playbooks/setup-auto-delegation.yml -e "target_chain=sei"
+      when: target_chain == '' and chain_name is not defined
+    - name: Set chain_name
+      set_fact:
+        chain_name: "{{ target_chain }}"
+      when: target_chain != ''
+    - name: Filter hosts by chain
+      set_fact:
+        should_run: "{{ hostvars[inventory_hostname]['chain_name'] == chain_name }}"
+      when: target_chain != ''
+    - name: Skip hosts not matching chain
+      meta: end_host
+      when: target_chain != '' and not should_run | default(true)
+    - name: Load chain variables
+      include_vars:
+        file: "{{ playbook_dir }}/../chain_vars/{{ chain_name }}.yml"
+    - name: Display setup information
+      debug:
+        msg: |
+          =====================================
+          Setting up Auto Delegation
+          =====================================
+          Chain: {{ chain_name }}
+          Interval: {{ auto_delegation_interval | default(3600) }} seconds
+          Keep Amount: {{ auto_delegation_keep_amount | default(30000) }} {{ denom }}
+          =====================================
+  tasks:
+    - name: Setup Auto Delegation
+      include_role:
+        name: auto-delegation
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          =====================================
+          Auto Delegation Setup Complete!
+          =====================================
+          설정 파일: {{ daemon_home }}/scripts/auto_delegation.conf
+          중요! 설정 파일 수정 필요:
+          1. WALLET_NAME 설정
+          2. (선택) VALOPER_ADDRESS, WALLET_ADDRESS 설정
+          3. (선택) SLACK_WEBHOOK 설정
+          명령어:
+          - 수동 실행: {{ daemon_home }}/scripts/auto_delegation.sh
+          - 타이머 상태: systemctl status auto-delegation-{{ chain_name }}.timer
+          - 로그 확인: journalctl -u auto-delegation-{{ chain_name }}.service
+          - 타이머 비활성화: systemctl disable auto-delegation-{{ chain_name }}.timer
+          =====================================
