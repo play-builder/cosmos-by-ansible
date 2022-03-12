@@ -1,0 +1,88 @@
+---
+- name: Create alertmanager user
+  user:
+    name: alertmanager
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+- name: Create alertmanager directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: alertmanager
+    group: alertmanager
+  loop:
+    - "{{ alertmanager_config_dir }}"
+    - "{{ alertmanager_data_dir }}"
+    - "{{ alertmanager_config_dir }}/templates"
+- name: Download alertmanager
+  get_url:
+    url: "https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version }}.linux-amd64.tar.gz"
+    dest: "/tmp/alertmanager-{{ alertmanager_version }}.tar.gz"
+    mode: '0644'
+  register: alertmanager_download
+- name: Extract alertmanager
+  unarchive:
+    src: "/tmp/alertmanager-{{ alertmanager_version }}.tar.gz"
+    dest: /tmp
+    remote_src: yes
+  when: alertmanager_download.changed
+- name: Install alertmanager binaries
+  copy:
+    src: "/tmp/alertmanager-{{ alertmanager_version }}.linux-amd64/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    mode: '0755'
+    owner: root
+    group: root
+    remote_src: yes
+  loop:
+    - alertmanager
+    - amtool
+  notify: Restart alertmanager
+- name: Clean up downloaded files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/alertmanager-{{ alertmanager_version }}.tar.gz"
+    - "/tmp/alertmanager-{{ alertmanager_version }}.linux-amd64"
+- name: Create alertmanager configuration
+  template:
+    src: alertmanager.yml.j2
+    dest: "{{ alertmanager_config_dir }}/alertmanager.yml"
+    owner: alertmanager
+    group: alertmanager
+    mode: '0644'
+    validate: "/usr/local/bin/amtool check-config %s"
+  notify: Restart alertmanager
+- name: Create slack notification template
+  template:
+    src: slack.tmpl.j2
+    dest: "{{ alertmanager_config_dir }}/templates/slack.tmpl"
+    owner: alertmanager
+    group: alertmanager
+    mode: '0644'
+  notify: Restart alertmanager
+- name: Create alertmanager systemd service
+  template:
+    src: alertmanager.service.j2
+    dest: /etc/systemd/system/alertmanager.service
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart alertmanager
+- name: Enable and start alertmanager
+  systemd:
+    name: alertmanager
+    state: started
+    enabled: yes
+    daemon_reload: yes
+- name: Verify alertmanager is running
+  uri:
+    url: "http://localhost:{{ alertmanager_port }}/-/healthy"
+    status_code: 200
+  register: alertmanager_health
+  retries: 3
+  delay: 5
+  until: alertmanager_health.status == 200
