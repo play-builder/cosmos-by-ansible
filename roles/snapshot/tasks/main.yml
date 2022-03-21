@@ -1,0 +1,157 @@
+---
+- name: Include chain variables
+  include_vars:
+    file: "{{ playbook_dir }}/../chain_vars/{{ chain_name }}.yml"
+- name: Verify snapshot_url is provided
+  fail:
+    msg: "snapshot_url 변수가 필요합니다. -e 'snapshot_url=https://...' 형식으로 제공하세요."
+  when: snapshot_url is not defined or snapshot_url == ""
+- name: Display snapshot information
+  debug:
+    msg: |
+      =====================================
+      Snapshot Restore
+      =====================================
+      Chain: {{ chain_name }}
+      Home: {{ daemon_home }}
+      Snapshot URL: {{ snapshot_url }}
+      =====================================
+- name: Stop cosmovisor service
+  systemd:
+    name: cosmovisor
+    state: stopped
+  ignore_errors: yes
+- name: Wait for service to stop
+  pause:
+    seconds: 10
+- name: Backup priv_validator_state.json
+  copy:
+    src: "{{ daemon_home }}/data/priv_validator_state.json"
+    dest: "{{ daemon_home }}/priv_validator_state.json.backup"
+    remote_src: yes
+    backup: yes
+  ignore_errors: yes
+- name: Remove old data directory
+  file:
+    path: "{{ daemon_home }}/data"
+    state: absent
+- name: Create fresh data directory
+  file:
+    path: "{{ daemon_home }}/data"
+    state: directory
+    mode: '0755'
+    owner: "{{ node_user }}"
+    group: "{{ node_group }}"
+- name: Create temporary download directory
+  file:
+    path: "/tmp/cosmos_snapshot"
+    state: directory
+    mode: '0755'
+- name: Download snapshot (lz4 compressed)
+  shell: |
+    cd /tmp/cosmos_snapshot
+    curl -L {{ snapshot_url }} -o snapshot.tar.lz4
+  args:
+    executable: /bin/bash
+  when: "'.lz4' in snapshot_url"
+  async: 7200
+  poll: 30
+- name: Download snapshot (gzip compressed)
+  shell: |
+    cd /tmp/cosmos_snapshot
+    curl -L {{ snapshot_url }} -o snapshot.tar.gz
+  args:
+    executable: /bin/bash
+  when: "'.gz' in snapshot_url and '.lz4' not in snapshot_url"
+  async: 7200
+  poll: 30
+- name: Download snapshot (zstd compressed)
+  shell: |
+    cd /tmp/cosmos_snapshot
+    curl -L {{ snapshot_url }} -o snapshot.tar.zst
+  args:
+    executable: /bin/bash
+  when: "'.zst' in snapshot_url"
+  async: 7200
+  poll: 30
+- name: Extract lz4 snapshot
+  shell: |
+    cd {{ daemon_home }}
+    lz4 -c -d /tmp/cosmos_snapshot/snapshot.tar.lz4 | tar -xf -
+  args:
+    executable: /bin/bash
+  when: "'.lz4' in snapshot_url"
+- name: Extract gzip snapshot
+  shell: |
+    cd {{ daemon_home }}
+    tar -xzf /tmp/cosmos_snapshot/snapshot.tar.gz
+  args:
+    executable: /bin/bash
+  when: "'.gz' in snapshot_url and '.lz4' not in snapshot_url"
+- name: Extract zstd snapshot
+  shell: |
+    cd {{ daemon_home }}
+    zstd -d /tmp/cosmos_snapshot/snapshot.tar.zst -o /tmp/cosmos_snapshot/snapshot.tar
+    tar -xf /tmp/cosmos_snapshot/snapshot.tar
+  args:
+    executable: /bin/bash
+  when: "'.zst' in snapshot_url"
+- name: Restore priv_validator_state.json
+  copy:
+    src: "{{ daemon_home }}/priv_validator_state.json.backup"
+    dest: "{{ daemon_home }}/data/priv_validator_state.json"
+    remote_src: yes
+    owner: "{{ node_user }}"
+    group: "{{ node_group }}"
+    mode: '0600'
+  ignore_errors: yes
+- name: Create empty priv_validator_state.json if not exists
+  copy:
+    dest: "{{ daemon_home }}/data/priv_validator_state.json"
+    content: |
+      {
+        "height": "0",
+        "round": 0,
+        "step": 0
+      }
+    owner: "{{ node_user }}"
+    group: "{{ node_group }}"
+    mode: '0600'
+    force: no
+- name: Fix data directory permissions
+  file:
+    path: "{{ daemon_home }}/data"
+    state: directory
+    recurse: yes
+    owner: "{{ node_user }}"
+    group: "{{ node_group }}"
+- name: Clean up temporary files
+  file:
+    path: "/tmp/cosmos_snapshot"
+    state: absent
+- name: Start cosmovisor service
+  systemd:
+    name: cosmovisor
+    state: started
+- name: Wait for node to start
+  pause:
+    seconds: 30
+- name: Check node status
+  shell: |
+    {{ go_path }}/bin/{{ binary_name }} status --home {{ daemon_home }} 2>&1 | jq -r '.SyncInfo // .sync_info'
+  args:
+    executable: /bin/bash
+  register: node_status
+  ignore_errors: yes
+- name: Display node status
+  debug:
+    msg: |
+      =====================================
+      Snapshot Restore Complete
+      =====================================
+      {{ node_status.stdout | default('Unable to get status') }}
+      =====================================
+      Commands:
+      - Check logs: journalctl -u cosmovisor -f
+      - Check status: {{ binary_name }} status --home {{ daemon_home }}
+      =====================================
