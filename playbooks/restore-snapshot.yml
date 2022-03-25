@@ -1,0 +1,64 @@
+---
+- name: Restore Snapshot
+  hosts: validators
+  become: yes
+  gather_facts: yes
+  vars:
+    target_chain: "{{ chain_name | default('') }}"
+  pre_tasks:
+    - name: Validate required variables
+      fail:
+        msg: |
+          필수 변수가 누락되었습니다.
+          사용법:
+          ansible-playbook playbooks/restore-snapshot.yml \
+            -e "target_chain=sei" \
+            -e "snapshot_url=https://..."
+          snapshot_url 예시:
+          - Polkachu: https://snapshots.polkachu.com/snapshots/sei/sei_12345678.tar.lz4
+          - Nodeist: https://ss.nodeist.net/sei/snapshot_latest.tar.lz4
+          - Kjnodes: https://snapshots.kjnodes.com/sei/snapshot_latest.tar.lz4
+      when: (target_chain == '' and chain_name is not defined) or snapshot_url is not defined
+    - name: Set chain_name
+      set_fact:
+        chain_name: "{{ target_chain }}"
+      when: target_chain != ''
+    - name: Filter hosts by chain
+      set_fact:
+        should_run: "{{ hostvars[inventory_hostname]['chain_name'] == chain_name }}"
+      when: target_chain != ''
+    - name: Skip hosts not matching chain
+      meta: end_host
+      when: target_chain != '' and not should_run | default(true)
+    - name: Load chain variables
+      include_vars:
+        file: "{{ playbook_dir }}/../chain_vars/{{ chain_name }}.yml"
+    - name: Confirm snapshot restore
+      pause:
+        prompt: |
+          ⚠️  경고: 스냅샷 복원은 기존 데이터를 삭제합니다!
+          Chain: {{ chain_name }}
+          Home: {{ daemon_home }}
+          Snapshot: {{ snapshot_url }}
+          계속하려면 'yes'를 입력하세요
+      register: confirm_restore
+      when: not (skip_confirmation | default(false))
+    - name: Abort if not confirmed
+      fail:
+        msg: "사용자가 작업을 취소했습니다."
+      when: not (skip_confirmation | default(false)) and confirm_restore.user_input != 'yes'
+  tasks:
+    - name: Restore Snapshot
+      include_role:
+        name: snapshot
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          =====================================
+          Snapshot Restore Complete!
+          =====================================
+          노드가 시작되었습니다. 동기화 상태를 확인하세요:
+          journalctl -u cosmovisor -f
+          {{ binary_name }} status --home {{ daemon_home }} | jq .SyncInfo
+          =====================================
