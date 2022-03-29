@@ -1,0 +1,80 @@
+---
+- name: Include chain variables
+  include_vars:
+    file: "{{ playbook_dir }}/../chain_vars/{{ chain_name }}.yml"
+- name: Set cosmos exporter version
+  set_fact:
+    cosmos_exporter_version: "{{ cosmos_exporter_version | default('0.3.0') }}"
+- name: Check if cosmos_exporter is installed
+  stat:
+    path: /usr/local/bin/cosmos-exporter
+  register: cosmos_exporter_binary
+- name: Create cosmos_exporter user
+  user:
+    name: cosmos_exporter
+    shell: /usr/sbin/nologin
+    system: yes
+    create_home: no
+- name: Download cosmos-exporter
+  get_url:
+    url: "https://github.com/solarlabsteam/cosmos-exporter/releases/download/v{{ cosmos_exporter_version }}/cosmos-exporter_{{ cosmos_exporter_version }}_Linux_x86_64.tar.gz"
+    dest: "/tmp/cosmos-exporter.tar.gz"
+    mode: '0644'
+  when: not cosmos_exporter_binary.stat.exists
+- name: Extract cosmos-exporter
+  unarchive:
+    src: "/tmp/cosmos-exporter.tar.gz"
+    dest: /tmp
+    remote_src: yes
+  when: not cosmos_exporter_binary.stat.exists
+- name: Install cosmos-exporter binary
+  copy:
+    src: "/tmp/cosmos-exporter"
+    dest: /usr/local/bin/cosmos-exporter
+    mode: '0755'
+    owner: root
+    group: root
+    remote_src: yes
+  notify: Restart cosmos_exporter
+  when: not cosmos_exporter_binary.stat.exists
+- name: Clean up downloaded files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/cosmos-exporter.tar.gz"
+    - "/tmp/cosmos-exporter"
+- name: Create cosmos-exporter config directory
+  file:
+    path: /etc/cosmos-exporter
+    state: directory
+    mode: '0755'
+- name: Create cosmos-exporter config
+  template:
+    src: cosmos-exporter.yml.j2
+    dest: /etc/cosmos-exporter/config.yml
+    mode: '0644'
+  notify: Restart cosmos_exporter
+- name: Create cosmos-exporter systemd service
+  template:
+    src: cosmos-exporter.service.j2
+    dest: /etc/systemd/system/cosmos-exporter.service
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart cosmos_exporter
+- name: Enable and start cosmos-exporter
+  systemd:
+    name: cosmos-exporter
+    state: started
+    enabled: yes
+    daemon_reload: yes
+- name: Verify cosmos-exporter is running
+  uri:
+    url: "http://localhost:{{ cosmos_exporter_port }}/metrics"
+    status_code: 200
+  register: cosmos_exporter_status
+  retries: 5
+  delay: 10
+  until: cosmos_exporter_status.status == 200
+  ignore_errors: yes
