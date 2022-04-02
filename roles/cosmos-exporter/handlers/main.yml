@@ -1,0 +1,8 @@
+---
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+- name: Restart cosmos_exporter
+  systemd:
+    name: cosmos-exporter
+    state: restarted
