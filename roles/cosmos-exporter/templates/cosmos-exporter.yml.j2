@@ -1,0 +1,9 @@
+tendermint-rpc: "http://localhost:{{ rpc_port | default(26657) }}"
+node: "localhost:{{ grpc_port | default(9090) }}"
+log-level: "info"
+json: false
+limit: 1000
+denom: "{{ denom }}"
+denom-coefficient: 1000000
+bech-prefix: "{{ chain_name | replace('-', '') }}"
+listen-address: ":{{ cosmos_exporter_port | default(9300) }}"
