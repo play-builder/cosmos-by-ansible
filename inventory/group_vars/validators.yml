@@ -1,0 +1,25 @@
+---
+node_mode: "validator"
+indexer: "null"
+prometheus_enabled: true
+mempool_size: 5000
+mempool_max_txs_bytes: 1073741824
+mempool_cache_size: 10000
+max_num_inbound_peers: 40
+max_num_outbound_peers: 10
+addr_book_strict: true
+pex: true
+seed_mode: false
+block_sync: true
+timeout_propose: "3s"
+timeout_prevote: "1s"
+timeout_precommit: "1s"
+timeout_commit: "5s"
+log_level: "info"
+log_format: "plain"
+service_restart_sec: 10
+service_limit_nofile: 65535
+use_external_volume: true
+volume_device: "/dev/sdb"
+volume_mount_point: "/mnt"
+volume_filesystem: "xfs"
