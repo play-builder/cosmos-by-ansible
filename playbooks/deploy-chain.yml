@@ -1,0 +1,85 @@
+---
+- name: Deploy Chain - Full Setup
+  hosts: validators
+  become: yes
+  gather_facts: yes
+  vars:
+    target_chain: "{{ chain_name | default('') }}"
+  pre_tasks:
+    - name: Validate target chain
+      fail:
+        msg: |
+          target_chain 변수가 필요합니다.
+          사용법: ansible-playbook playbooks/deploy-chain.yml -e "target_chain=sei"
+      when: target_chain == '' and chain_name is not defined
+    - name: Set chain_name
+      set_fact:
+        chain_name: "{{ target_chain }}"
+      when: target_chain != ''
+    - name: Filter hosts by chain
+      set_fact:
+        should_run: "{{ hostvars[inventory_hostname]['chain_name'] == chain_name }}"
+      when: target_chain != ''
+    - name: Skip hosts not matching chain
+      meta: end_host
+      when: target_chain != '' and not should_run | default(true)
+    - name: Load chain variables
+      include_vars:
+        file: "{{ playbook_dir }}/../chain_vars/{{ chain_name }}.yml"
+    - name: Display deployment information
+      debug:
+        msg: |
+          =====================================
+          Deploying {{ chain_name | upper }}
+          =====================================
+          Host: {{ inventory_hostname }}
+          Chain ID: {{ chain_id }}
+          Binary: {{ binary_name }} {{ binary_version }}
+          Home: {{ daemon_home }}
+          =====================================
+  tasks:
+    - name: Run base setup
+      include_role:
+        name: common
+    - name: Setup UFW firewall
+      include_tasks: "{{ playbook_dir }}/../roles/common/tasks/ufw.yml"
+    - name: Setup Go
+      include_role:
+        name: golang
+    - name: Setup Cosmovisor
+      include_role:
+        name: cosmovisor
+    - name: Setup Cosmos Node
+      include_role:
+        name: cosmos-node
+    - name: Setup Node Exporter
+      include_role:
+        name: node-exporter
+    - name: Setup Cosmos Exporter
+      include_role:
+        name: cosmos-exporter
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg: |
+          =====================================
+          {{ chain_name | upper }} Deployment Complete!
+          =====================================
+          노드 정보:
+          - Home: {{ daemon_home }}
+          - Binary: {{ binary_name }}
+          - Chain ID: {{ chain_id }}
+          다음 단계:
+          1. Genesis 파일 설정:
+             cp genesis.json {{ daemon_home }}/config/genesis.json
+          2. (선택) 스냅샷 복원:
+             ansible-playbook playbooks/restore-snapshot.yml \
+               -e "target_chain={{ chain_name }}" \
+               -e "snapshot_url=https://..."
+          3. 노드 시작:
+             systemctl start cosmovisor
+          4. 로그 확인:
+             journalctl -u cosmovisor -f
+          5. 동기화 확인:
+             {{ binary_name }} status --home {{ daemon_home }}
+          =====================================
