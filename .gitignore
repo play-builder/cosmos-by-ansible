@@ -187,3 +187,8 @@ node_modules/
 
 
 *.sh
+
+# editor / OS
+*~
+.DS_Store
+.idea/
