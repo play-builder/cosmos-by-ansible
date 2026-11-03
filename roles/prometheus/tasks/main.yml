@@ -20,6 +20,7 @@
 - name: Download prometheus
   get_url:
     url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+    checksum: "sha256:https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/sha256sums.txt"
     dest: "/tmp/prometheus-{{ prometheus_version }}.tar.gz"
     mode: '0644'
   register: prometheus_download

@@ -19,6 +19,7 @@
 - name: Download alertmanager
   get_url:
     url: "https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/alertmanager-{{ alertmanager_version }}.linux-amd64.tar.gz"
+    checksum: "sha256:https://github.com/prometheus/alertmanager/releases/download/v{{ alertmanager_version }}/sha256sums.txt"
     dest: "/tmp/alertmanager-{{ alertmanager_version }}.tar.gz"
     mode: '0644'
   register: alertmanager_download
