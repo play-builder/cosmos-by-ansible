@@ -94,5 +94,5 @@
       Grafana is ready!
       URL: http://{{ ansible_host }}:{{ grafana_port }}
       Username: {{ grafana_admin_user }}
-      Password: {{ grafana_admin_password }}
+      Password: (Ansible Vault: vault_grafana_admin_password)
       =====================================

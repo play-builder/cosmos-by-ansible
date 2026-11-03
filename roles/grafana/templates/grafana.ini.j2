@@ -4,7 +4,7 @@ domain = {{ ansible_host }}
 root_url = http://{{ ansible_host }}:{{ grafana_port | default(3000) }}/
 [security]
 admin_user = {{ grafana_admin_user | default('admin') }}
-admin_password = {{ grafana_admin_password | default('admin') }}
+admin_password = {{ grafana_admin_password }}
 disable_gravatar = true
 [users]
 allow_sign_up = false

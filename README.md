@@ -129,3 +129,16 @@ ansible-playbook playbooks/setup-auto-delegation.yml \
 1. **키 보안**: `priv_validator_key.json`, `node_key.json`은 반드시 백업
 2. **Double Signing**: 동일 validator key로 여러 노드 실행 금지
 3. **방화벽**: 필요한 포트만 개방
+
+## 비밀값 (Ansible Vault)
+
+Grafana 관리자 비밀번호와 Slack Webhook 은 저장소에 두지 않습니다.
+
+```bash
+cp inventory/group_vars/all/vault.yml.example inventory/group_vars/all/vault.yml
+ansible-vault encrypt inventory/group_vars/all/vault.yml
+ansible-playbook playbooks/setup-monitoring.yml --ask-vault-pass
+```
+
+모니터링 포트(Prometheus·Grafana·Alertmanager)는 `admin_cidr` 에서만 접근할 수 있습니다.
+`-e admin_cidr=<내 IP>/32` 로 실행하거나 vault.yml 에 `admin_cidr` 를 추가하세요.

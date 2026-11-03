@@ -52,7 +52,7 @@
           Grafana:
             URL: http://{{ ansible_host }}:{{ grafana_port }}
             Username: {{ grafana_admin_user }}
-            Password: {{ grafana_admin_password }}
+            Password: (Ansible Vault: vault_grafana_admin_password)
           Alertmanager:
             URL: http://{{ ansible_host }}:{{ alertmanager_port }}
           다음 단계:
