@@ -22,12 +22,13 @@
         rule: allow
         port: "{{ item.port }}"
         proto: tcp
+        from_ip: "{{ item.from | default('any') }}"
         comment: "{{ item.comment }}"
       loop:
         - { port: "22", comment: "SSH" }
-        - { port: "{{ prometheus_port }}", comment: "Prometheus" }
-        - { port: "{{ grafana_port }}", comment: "Grafana" }
-        - { port: "{{ alertmanager_port }}", comment: "Alertmanager" }
+        - { port: "{{ prometheus_port }}", comment: "Prometheus", from: "{{ admin_cidr }}" }
+        - { port: "{{ grafana_port }}", comment: "Grafana", from: "{{ admin_cidr }}" }
+        - { port: "{{ alertmanager_port }}", comment: "Alertmanager", from: "{{ admin_cidr }}" }
       when: ufw_enabled | default(true)
   tasks:
     - name: Setup Prometheus

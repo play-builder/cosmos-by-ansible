@@ -34,3 +34,6 @@ monitoring_ufw_allowed_ports:
 node_exporter_targets: []
 cosmos_exporter_targets: []
 tendermint_targets: []
+
+# 모니터링 포트 접근 허용 대역. 실제 값은 -e admin_cidr=x.x.x.x/32 또는 vault.yml 로 덮어쓰기
+admin_cidr: "127.0.0.1/32"
