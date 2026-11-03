@@ -34,7 +34,7 @@
 - name: Set Cosmovisor environment variables in profile
   blockinfile:
     path: "{{ ansible_env.HOME }}/.profile"
-    marker: "
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - cosmovisor env"
     block: |
       export DAEMON_NAME={{ binary_name }}
       export DAEMON_HOME={{ daemon_home }}

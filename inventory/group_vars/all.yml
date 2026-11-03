@@ -54,7 +54,7 @@ auto_delegation_enabled: false
 auto_delegation_interval: 3600
 auto_delegation_keep_amount: 30000
 slack_webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-slack_channel: "
+slack_channel: "#cosmos-alerts"
 backup_enabled: true
 backup_dir: "/root/backups"
 backup_keys:

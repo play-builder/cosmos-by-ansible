@@ -51,7 +51,7 @@
 - name: Set Go environment variables in profile
   blockinfile:
     path: "{{ ansible_env.HOME }}/.profile"
-    marker: "
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - golang env (profile)"
     block: |
       export GOROOT=/usr/local/go
       export GOPATH={{ go_path }}
@@ -60,7 +60,7 @@
 - name: Set Go environment variables in bashrc
   blockinfile:
     path: "{{ ansible_env.HOME }}/.bashrc"
-    marker: "
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - golang env (bashrc)"
     block: |
       export GOROOT=/usr/local/go
       export GOPATH={{ go_path }}

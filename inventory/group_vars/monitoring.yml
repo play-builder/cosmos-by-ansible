@@ -19,7 +19,7 @@ alertmanager_cluster_port: 9094
 alertmanager_data_dir: "/var/lib/alertmanager"
 alertmanager_config_dir: "/etc/alertmanager"
 slack_webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-slack_channel: "
+slack_channel: "#cosmos-alerts"
 slack_username: "Cosmos Alertmanager"
 alert_node_down_threshold: "2m"
 alert_high_block_miss_threshold: 100

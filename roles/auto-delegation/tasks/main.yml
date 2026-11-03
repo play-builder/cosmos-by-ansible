@@ -65,7 +65,7 @@
       Timer: auto-delegation-{{ chain_name }}.timer
       Interval: {{ auto_delegation_interval | default(3600) }} seconds
       Keep Amount: {{ auto_delegation_keep_amount | default(30000) }} {{ denom }}
-      
+
       Commands:
       - Manual run: {{ daemon_home }}/scripts/auto_delegation.sh
       - Check timer: systemctl status auto-delegation-{{ chain_name }}.timer
